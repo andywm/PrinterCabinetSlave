@@ -10,10 +10,11 @@
 //------------------------------------------------------------------------------
 #include <Arduino.h>
 #include <Wire.h>
-#include "i2cLocal/bme680.h"
+#include <Adafruit_BME680.h>
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
+//Define Busses
 enum I2C_BUSSES_ENUM { LocalBus, GlobalBus, I2C_MAX_WIRES = 2 };
 TwoWire g_i2cBus[I2C_MAX_WIRES] = 
 { 
@@ -21,24 +22,24 @@ TwoWire g_i2cBus[I2C_MAX_WIRES] =
   TwoWire(2, I2C_FAST_MODE)
 };
 
-Local::BME680 g_airSensor;
-
+//Gas Sensor
+Adafruit_BME680 g_gasSensor(&g_i2cBus[LocalBus]);
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void setup() 
 {
-
+  g_i2cBus[LocalBus].begin();
+  g_i2cBus[GlobalBus].begin();
+  Serial.begin(9600);
 }
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void loop()
 {
-
-}
-
-void ReadSensor()
-{
-
+  float temp = g_gasSensor.readTemperature();
+  char str[16];
+  sprintf(&str[0], "Temp = %.2f",temp);
+  Serial.println(str);
 }
