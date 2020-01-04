@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_BME680.h>
+#include <LiquidCrystal_I2C.h>
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
@@ -24,7 +25,7 @@ TwoWire g_i2cBus[I2C_MAX_WIRES] =
 
 //Gas Sensor
 Adafruit_BME680 g_gasSensor(&g_i2cBus[LocalBus]);
-
+LiquidCrystal_I2C g_lcd(0x27, 16, 2, LCD_5x8DOTS, g_i2cBus[LocalBus]);
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -41,6 +42,11 @@ void setup()
   g_gasSensor.setPressureOversampling(BME680_OS_4X);
   g_gasSensor.setIIRFilterSize(BME680_FILTER_SIZE_3);
   g_gasSensor.setGasHeater(320, 150); // 320*C for 150 ms
+
+  g_lcd.begin();
+
+	g_lcd.backlight();
+	g_lcd.print("Hello, world!");
 }
 
 //------------------------------------------------------------------------------
