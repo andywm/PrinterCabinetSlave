@@ -25,6 +25,7 @@ TwoWire g_i2cBus[I2C_MAX_WIRES] =
 //Gas Sensor
 Adafruit_BME680 g_gasSensor(&g_i2cBus[LocalBus]);
 
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void setup() 
@@ -32,14 +33,34 @@ void setup()
   g_i2cBus[LocalBus].begin();
   g_i2cBus[GlobalBus].begin();
   Serial.begin(9600);
+
+  // Set up oversampling and filter initialization
+  g_gasSensor.begin(0x76, true);
+  g_gasSensor.setTemperatureOversampling(BME680_OS_8X);
+  g_gasSensor.setHumidityOversampling(BME680_OS_2X);
+  g_gasSensor.setPressureOversampling(BME680_OS_4X);
+  g_gasSensor.setIIRFilterSize(BME680_FILTER_SIZE_3);
+  g_gasSensor.setGasHeater(320, 150); // 320*C for 150 ms
 }
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void loop()
 {
-  float temp = g_gasSensor.readTemperature();
-  char str[16];
-  sprintf(&str[0], "Temp = %.2f",temp);
+  Serial.println("loop");
+  delay(1000);
+
+  if( auto endTime = g_gasSensor.beginReading() == 0 )
+  {
+    return;
+  }
+
+  if (!g_gasSensor.endReading()) 
+  {
+    return;
+  }
+
+  char str[64];
+  sprintf(&str[0], "Temp = %.2f, VOC %.2f kOhm",g_gasSensor.temperature, (g_gasSensor.gas_resistance/1000.0f) );
   Serial.println(str);
 }
