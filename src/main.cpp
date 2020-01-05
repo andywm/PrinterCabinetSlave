@@ -1,6 +1,6 @@
 /*------------------------------------------------------------------------------
     ()      File:   main.cpp
-    /\      Author: Andrew Woodward-May
+    /\      Copyright (c) 2020 Andrew Woodward-May - See legal.txt
    //\\       
   //  \\    Description:
               Printer enclosure sensor suite.
@@ -22,7 +22,7 @@
 void periodicTasks();
 void updateSensor();
 void updateDoor();
-void tempAndVocRender( const char* str );
+void tempAndVocRender( const char* ptrtolines, int width, int height );
 
 //------------------------------------------------------------------------------
 // Enums
@@ -30,12 +30,12 @@ void tempAndVocRender( const char* str );
 struct Enums
 {
   enum I2C_BusEnum { LocalBus, GlobalBus, I2C_MAX_WIRES = 2 };
-  enum DisplayReadoutSlot { DisplayTemp, DisplayVOC, DisplayVOCSeverity, MAX_DISPLAY_SLOT };
+  enum DisplayReadoutSlot { DisplayTemp=0, DisplayVOC=1, DisplayVOCSeverity=2, MAX_DISPLAY_SLOT=3 };
 
   enum Jobs
   {
     Job_None          = 0,
-    Job_SensorRefresh = 0x1 < 1,
+    Job_SensorRefresh = 0x1 << 1,
   };
 };
 
@@ -90,12 +90,11 @@ void setup()
   // y - air quality, as a percentage of resistance on the BME680
   // z - air quality hint from lookup table.
   // | 00| 01| 02| 03| 04| 05| 06| 07| 08| 09| 10| 11| 12| 13| 14| 15|
-  // | T | e | m | p | _ | x | x | x | x | x | * | C | _ | _ | _ | _ |
-  // | 16| 17| 18| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31|
-  // | V | O | C | _ | y | y | y | % | _  |z | z | z | z | z | z | z |
-  g_displayHelper.reserve(Enums::DisplayTemp, 0, 15);
-  g_displayHelper.reserve(Enums::DisplayVOC, 16, 23);
-  g_displayHelper.reserve(Enums::DisplayTemp, 26, 31);
+  //0| T | e | m | p | _ | x | x | x | x | x | * | C | _ | _ | _ | _ |
+  //1| V | O | C | _ | y | y | y | % | _  |z | z | z | z | z | z | z |
+  g_displayHelper.reserve(Enums::DisplayTemp, 0, 0, 15);
+  g_displayHelper.reserve(Enums::DisplayVOC, 1, 0, 7);
+  g_displayHelper.reserve(Enums::DisplayVOCSeverity, 1, 9, 15);
 }
 
 //------------------------------------------------------------------------------
@@ -115,10 +114,10 @@ void periodicTasks()
 {
   //timers.
   unsigned long runtime = millis();
-  g_sensorRefreshTimer.tick( runtime );
+  if( g_sensorRefreshTimer.tick( runtime ) )
 
   //jobs.
-  if( (g_jobs &= Enums::Job_SensorRefresh) != 0 )
+  if( (g_jobs & Enums::Job_SensorRefresh) != 0 )
   {
     updateSensor();
   }
@@ -142,12 +141,14 @@ void updateSensor()
 
     char str[16];
     // display temperature.
-    sprintf(&str[0], "Temp %.2f5s",g_gasSensor.temperature );
+    sprintf(&str[0], "Temp %5.2f*C",g_gasSensor.temperature );
     g_displayHelper.update(Enums::DisplayTemp, str );
 
     // display air quality.
-    const float airQuality = Min( (g_gasSensor.gas_resistance/VOCTable::_table[VOCTable::Good])*100.0f, 100.0f );
-    sprintf(&str[0], "VOC %.0f3g%%", airQuality );
+    float airQuality = ((float)g_gasSensor.gas_resistance/(float)VOCTable::_table[VOCTable::Good])*100.0f;
+    airQuality = Min( airQuality, 100.0f );
+
+    sprintf(&str[0], "VOC %03.0f%%", airQuality );
     g_displayHelper.update(Enums::DisplayVOC, str );
 
     // display severity hint.
@@ -159,11 +160,9 @@ void updateSensor()
         break;
       }
     }
-
+    
     g_displayHelper.draw();
-
-    //sprintf(&str[0], "Temp = %.2f, VOC %.2f kOhm",g_gasSensor.temperature, (g_gasSensor.gas_resistance/1000.0f) );
-    //Serial.println(str);
+    g_jobs &= ~Enums::Job_SensorRefresh;
   }
 }
 
@@ -176,7 +175,12 @@ void updateDoor()
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-void tempAndVocRender( const char* str )
+void tempAndVocRender( const char * ptrtolines, int width, int height )
 {
-	g_lcd.print(str);
+  g_lcd.clear();
+  for(int line=0; line<height; line++)
+  {
+    g_lcd.setCursor(0,line);
+    g_lcd.printstr(&ptrtolines[line*(width+1)]);
+  }
 }

@@ -15,7 +15,7 @@
 //------------------------------------------------------------------------------
 
 //Defines
-#define ENUM_AS_STRING(enumvar) "enumvar"
+#define ENUM_AS_STRING(enumvar) #enumvar
 
 //------------------------------------------------------------------------------
 // Maths Utility
@@ -33,34 +33,14 @@ static inline const Type & Min( const Type & A, const Type & B)
 }
 
 //------------------------------------------------------------------------------
-// ISO C Types
-//------------------------------------------------------------------------------
-/*using uint8_t   = unsigned char;
-using int8_t    = char;
-
-using uint16_t  = unsigned short;
-using int16_t   = short;
-
-using uint32_t  = int;
-using int32_t   = unsigned int;*/
-
-//------------------------------------------------------------------------------
 // BME680 Lookup Table
 // Source for values - https://forums.pimoroni.com/t/bme680-observed-gas-ohms-readings/6608
 //------------------------------------------------------------------------------
 struct VOCTable
 {
-    enum                                            { Good,     Average,    Subpar,   Bad,      Awful,  Severe,     MAX };
-    static constexpr unsigned int _table[MAX] =     { 431331,   213212,     108042,   54586,    27080,  13591 };
-    static constexpr const char * _asString[MAX] =
-    {
-         ENUM_AS_STRING(Good),
-         ENUM_AS_STRING(Average),
-         ENUM_AS_STRING(Subpar),
-         ENUM_AS_STRING(Bad),
-         ENUM_AS_STRING(Awful),
-         ENUM_AS_STRING(Severe)
-    };
+    enum                                        { Good,     Average,    Subpar,   Bad,      Awful,  Severe,     MAX };
+    static constexpr uint32_t _table[MAX] =     { 431331,   213212,     108042,   54586,    27080,  13591 };
+    static const char * _asString[MAX];
 };
 
 //------------------------------------------------------------------------------
@@ -78,6 +58,7 @@ public:
     void reset( unsigned long time )
     {
         m_beginTime = time;
+        m_alreadyTriggered = false;
     }
 
     bool tick( unsigned long time )
@@ -98,9 +79,9 @@ public:
             return true;
         }
 
-         m_jobs |= m_jobOnComplete;
-         m_alreadyTriggered = true;
-         return true;
+        m_jobs |= m_jobOnComplete;
+        m_alreadyTriggered = true;
+        return true;
     }
 
  private:
@@ -113,7 +94,7 @@ public:
 };
 
 //------------------------------------------------------------------------------
-// Cabinet State
+// Enclosure State
 //------------------------------------------------------------------------------
 struct EnvironmentInfo
 {
@@ -129,62 +110,61 @@ template<uint8_t Width, uint8_t Height, uint8_t MaxReserved = 2>
 class Display
 {
 public:
-    using callback = void (*)(const char *);
+    using callback = void (*)(const char*, int,int);
 
 public:
     Display( callback writeCbk )
         : m_drawFunction( writeCbk )
     {
-        memset( &m_state[0], ' ', Width*Height );
-        m_state[Width*Height] = '\0';
+        memset( &m_state[0], '\0', Height*(Width+1) -1 );
+        clear();
     }
 
-    void reserve( uint8_t id, uint8_t begin_inclusive, uint8_t end_inclusive )
+    void reserve( uint8_t id, uint8_t line, uint8_t begin_inclusive, uint8_t end_inclusive )
     {
-        if( id <= 0 && id >= MaxReserved )
+        if( id >= MaxReserved )
            return;
 
+        m_ranges[id].line = line;
         m_ranges[id].begin = begin_inclusive;
         m_ranges[id].end = end_inclusive;
     }
 
     void update( uint8_t id, const char * str )
     {
-        uint8_t begin = m_ranges[id].begin;
-        uint8_t end = m_ranges[id].end;
+        const uint8_t line = m_ranges[id].line;
+        const uint8_t begin = m_ranges[id].begin;
+        const uint8_t end = m_ranges[id].end;
 
-        //validate range.
-        if( begin >= 0 && begin >= end && end <= (Width*Height) ) 
-            return;
+        const int range = end-begin+1;
+        const uint8_t size = Min(range, (int)strlen(str));
 
-        // blank the range. 
-        memset( m_state+begin, ' ', end - begin );
-
-        //copy from the target string.
-        uint8_t size = Min(end - begin, (int)strlen(str));
-        memcpy( m_state+begin, str, size );
+        //fill
+        memset(&(m_state[line][begin]), ' ', range );
+        strncpy(&(m_state[line][begin]), str, size );
     }
 
     void draw()
     {
-        m_drawFunction(&m_state[0]);
+        m_drawFunction(&m_state[0][0], Width, Height);
     }
 
     void clear()
     {
-        memset( &m_state[0], ' ', Width*Height );
-        m_state[Width*Height] = '\0';
-
-        draw();
+        for(int line=0; line < Height; line++)
+        {
+            memset( &m_state[line], ' ', Width );
+        }
     }
 
 private:
   struct Range 
   { 
+      uint8_t line = 0;
       uint8_t begin =0;
       uint8_t end =0;
   } m_ranges[MaxReserved];
 
   callback m_drawFunction;
-  char m_state[Height*Width+1];
+  char m_state[Height][Width+1];
 };
