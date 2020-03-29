@@ -124,7 +124,7 @@ void setup()
   g_displayHelper.reserve(Enums::DisplayTemp, 0, 0, 15);
   g_displayHelper.reserve(Enums::DisplayVOC, 1, 0, 7);
   g_displayHelper.reserve(Enums::DisplayVOCSeverity, 1, 9, 15);
-
+  
   //LEDS
   g_leds.begin();
   g_leds.show();
