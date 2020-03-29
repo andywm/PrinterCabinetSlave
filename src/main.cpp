@@ -1,9 +1,31 @@
 /*------------------------------------------------------------------------------
     ()      File:   main.cpp
-    /\      Copyright (c) 2020 Andrew Woodward-May - See legal.txt
+    /\      Copyright (c) 2020 Andrew Woodward-May
    //\\       
   //  \\    Description:
               Printer enclosure sensor suite.
+
+------------------------------
+------------------------------
+License Text - The MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of 
+this software and associated documentation files (the "Software"), to deal in the
+Software without restriction, including without limitation the rights to use, copy,
+modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
+and to permit persons to whom the Software is furnished to do so, subject to the 
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all 
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT 
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ------------------------------------------------------------------------------*/
 
 //------------------------------------------------------------------------------
@@ -13,6 +35,7 @@
 #include <Adafruit_BME680.h>
 #include <LiquidCrystal_I2C.h>
 #include "utility.h"
+#include "WS2812B.h"
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
@@ -21,7 +44,7 @@
 //------------------------------------------------------------------------------
 void periodicTasks();
 void updateSensor();
-void updateDoor();
+void updateLights();
 void tempAndVocRender( const char* ptrtolines, int width, int height );
 
 //------------------------------------------------------------------------------
@@ -34,9 +57,10 @@ struct Enums
 
   enum Jobs
   {
-    Job_None          = 0,
+    Job_None          = 0x0,
     Job_SensorRefresh = 0x1 << 1,
-  };
+    Job_LightsRefresh = 0x1 << 2,
+  }; 
 };
 
 //------------------------------------------------------------------------------
@@ -63,6 +87,11 @@ Display<16,2,Enums::MAX_DISPLAY_SLOT> g_displayHelper(tempAndVocRender);
 
 //State
 EnvironmentInfo g_environmentInfo;
+
+//Door LEDs
+const unsigned int LED_COUNT = 50;
+WS2812B g_leds = WS2812B(LED_COUNT);
+uint8_t g_doorTriggerPin = PB1;
 
 //------------------------------------------------------------------------------
 // Arduino Setup Function
@@ -95,6 +124,11 @@ void setup()
   g_displayHelper.reserve(Enums::DisplayTemp, 0, 0, 15);
   g_displayHelper.reserve(Enums::DisplayVOC, 1, 0, 7);
   g_displayHelper.reserve(Enums::DisplayVOCSeverity, 1, 9, 15);
+
+  //LEDS
+  g_leds.begin();
+  g_leds.show();
+  pinMode(g_doorTriggerPin, INPUT_PULLDOWN);
 }
 
 //------------------------------------------------------------------------------
@@ -102,6 +136,17 @@ void setup()
 //------------------------------------------------------------------------------
 void loop()
 {
+  //timers.
+  unsigned long runtime = millis();
+  g_sensorRefreshTimer.tick( runtime );
+
+  const bool doorOpen = digitalRead(g_doorTriggerPin);
+  if( g_environmentInfo.doorOpen != doorOpen )
+  {
+     g_environmentInfo.doorOpen = doorOpen;
+     g_jobs |= Enums::Job_LightsRefresh;
+  }
+
   periodicTasks();
 }
 
@@ -112,16 +157,20 @@ void loop()
 //------------------------------------------------------------------------------
 void periodicTasks()
 {
-  //timers.
-  unsigned long runtime = millis();
-  if( g_sensorRefreshTimer.tick( runtime ) )
+  //jobs. 
 
-  //jobs.
+  if( (g_jobs & Enums::Job_LightsRefresh) != 0 )
+  {
+    updateLights();
+  }
+
   if( (g_jobs & Enums::Job_SensorRefresh) != 0 )
   {
     updateSensor();
   }
 }
+
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void updateSensor()
@@ -168,9 +217,17 @@ void updateSensor()
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-void updateDoor()
+void updateLights()
 {
+  const uint32_t colours[] = { WS2812B::Color(255,0,0), WS2812B::Color(0,0,255) };
+  
+  for( unsigned int led=0; led<LED_COUNT; led++)
+  {
+    g_leds.setPixelColor(colours[g_environmentInfo.doorOpen? 0 : 1], led);
+  }
+  g_leds.show();
 
+  g_jobs &= ~Enums::Job_LightsRefresh;
 }
 
 //------------------------------------------------------------------------------
