@@ -91,7 +91,7 @@ EnvironmentInfo g_environmentInfo;
 //Door LEDs
 const unsigned int LED_COUNT = 50;
 WS2812B g_leds = WS2812B(LED_COUNT);
-uint8_t g_doorTriggerPin = PB1;
+uint8_t g_doorTriggerPin = PB12;
 
 //------------------------------------------------------------------------------
 // Arduino Setup Function
@@ -219,7 +219,7 @@ void updateSensor()
 //------------------------------------------------------------------------------
 void updateLights()
 {
-  const uint32_t colours[] = { WS2812B::Color(255,0,0), WS2812B::Color(0,0,255) };
+  const uint32_t colours[] = { WS2812B::Color(255,255,255), WS2812B::Color(255,0,0) };
   
   for( unsigned int led=0; led<LED_COUNT; led++)
   {

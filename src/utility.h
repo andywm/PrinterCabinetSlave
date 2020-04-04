@@ -39,11 +39,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //Defines
 #define ENUM_AS_STRING(enumvar) #enumvar
-struct LightingTest
-{
-    uint8_t index : 1;
-};
-
 //------------------------------------------------------------------------------
 // Maths Utility
 //------------------------------------------------------------------------------
