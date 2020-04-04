@@ -219,7 +219,7 @@ void updateSensor()
 //------------------------------------------------------------------------------
 void updateLights()
 {
-  const uint32_t colours[] = { WS2812B::Color(255,255,255), WS2812B::Color(255,0,0) };
+  const uint32_t colours[] = { WS2812B::Color(255,0,0), WS2812B::Color(255,255,255) };
   
   for( unsigned int led=0; led<LED_COUNT; led++)
   {
