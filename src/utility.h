@@ -4,8 +4,7 @@
    //\\     
   //  \\    Description:
               Collection of utility functions, helper structures, and tables
-              for the program.
-              
+              for the program.         
 ------------------------------
 ------------------------------
 License Text - The MIT License
@@ -31,9 +30,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma once
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-#include <stdlib.h>
 #include <stdio.h>
+#if defined (IS_BLUEPILL_BUILD)
 #include <cstring>
+#else
+#include <string.h>
+#endif //defined(IS_BLUEPILL_BUILD)
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
@@ -71,46 +73,15 @@ struct VOCTable
 class Timer
 {
 public:
-    Timer( unsigned long duration, int & jobs, int jobOnComplete )
-        : m_duration( duration )
-        , m_jobs( jobs )
-        , m_jobOnComplete( jobOnComplete )
-    {}
-
-    void reset( unsigned long time )
-    {
-        m_beginTime = time;
-        m_alreadyTriggered = false;
-    }
-
-    bool tick( unsigned long time )
-    {
-        //has the time elapsed?
-        if( (time - m_beginTime) < m_duration )
-            return false;
-
-        //is the flag not currently set?
-        if( (m_jobs & m_jobOnComplete) != 0 )
-            return true;
-
-        //if already triggered, then we are in the reset stage.
-        //if not already triggered, we are in the set stage.
-        if( m_alreadyTriggered )
-        {
-            reset( time );
-            return true;
-        }
-
-        m_jobs |= m_jobOnComplete;
-        m_alreadyTriggered = true;
-        return true;
-    }
+    Timer( unsigned long duration, int& jobs, int jobOnComplete );
+    void reset( unsigned long time );
+    bool tick( unsigned long time );
 
  private:
     unsigned long m_beginTime = 0;
     unsigned long m_duration = 0;
     
-    int & m_jobs;
+    int& m_jobs;
     int m_jobOnComplete = 0;
     bool m_alreadyTriggered = false;
 };
@@ -127,6 +98,9 @@ struct EnvironmentInfo
 
 //------------------------------------------------------------------------------
 // Display Helper
+//------------------------------------------------------------------------------
+//nb, do I _really_ need this to be a template? What other displays are you possible
+//expecting.. not fond of this whole thing being in a header.
 //------------------------------------------------------------------------------
 template<uint8_t Width, uint8_t Height, uint8_t MaxReserved = 2>
 class Display

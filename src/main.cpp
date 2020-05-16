@@ -4,7 +4,6 @@
    //\\       
   //  \\    Description:
               Printer enclosure sensor suite.
-
 ------------------------------
 ------------------------------
 License Text - The MIT License
@@ -34,8 +33,14 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <Wire.h>
 #include <Adafruit_BME680.h>
 #include <LiquidCrystal_I2C.h>
+#include <FastLED.h>
+#include "pinconfig.h"
 #include "utility.h"
-#include "WS2812B.h"
+
+#if defined(IS_NANO_BUILD)
+// AVR LIBC sprintf is godawful.
+#include <printf.h>
+#endif //defined(IS_NANO_BUILD)
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
@@ -52,7 +57,12 @@ void tempAndVocRender( const char* ptrtolines, int width, int height );
 //------------------------------------------------------------------------------
 struct Enums
 {
+#if defined(IS_BLUEPILL_BUILD)
   enum I2C_BusEnum { LocalBus, GlobalBus, I2C_MAX_WIRES = 2 };
+#elif defined(IS_NANO_BUILD)
+  enum I2C_BusEnum { LocalBus, I2C_MAX_WIRES = 1 };
+#endif //defined(IS_NANO_BUILD)
+
   enum DisplayReadoutSlot { DisplayTemp=0, DisplayVOC=1, DisplayVOCSeverity=2, MAX_DISPLAY_SLOT=3 };
 
   enum Jobs
@@ -67,12 +77,20 @@ struct Enums
 // Global
 //------------------------------------------------------------------------------
 // i2c Busses
+#if defined( IS_BLUEPILL_BUILD )
 TwoWire g_i2cBus[Enums::I2C_MAX_WIRES] = 
 { 
   TwoWire(1, I2C_FAST_MODE),
   TwoWire(2, I2C_FAST_MODE)
 };
+#elif defined(IS_NANO_BUILD)
+TwoWire g_i2cBus[Enums::I2C_MAX_WIRES] = 
+{
+  TwoWire()
+};
+#endif //defined( IS_NANO_BUILD)
 
+//Jobs
 int g_jobs = Enums::Job_None;
 
 // Periodic Tasks
@@ -89,9 +107,13 @@ Display<16,2,Enums::MAX_DISPLAY_SLOT> g_displayHelper(tempAndVocRender);
 EnvironmentInfo g_environmentInfo;
 
 //Door LEDs
-const unsigned int LED_COUNT = 50;
+const unsigned int LED_COUNT = LEDCOUNT;
+#if defined( IS_BLUEPILL_BUILD )
 WS2812B g_leds = WS2812B(LED_COUNT);
-uint8_t g_doorTriggerPin = PB12;
+#elif defined(IS_NANO_BUILD)
+CRGB g_leds[LED_COUNT];
+#endif //defined( IS_NANO_BUILD)
+
 
 //------------------------------------------------------------------------------
 // Arduino Setup Function
@@ -99,7 +121,9 @@ uint8_t g_doorTriggerPin = PB12;
 void setup() 
 {
   g_i2cBus[Enums::LocalBus].begin();
+#if defined( IS_BLUEPILLL_BUILD )
   g_i2cBus[Enums::GlobalBus].begin();
+#endif //defined( IS_BLUEPILLL_BUILD )
   Serial.begin(9600);
 
   // Set up oversampling and filter initialization
@@ -126,9 +150,15 @@ void setup()
   g_displayHelper.reserve(Enums::DisplayVOCSeverity, 1, 9, 15);
   
   //LEDS
+#if defined( IS_BLUEPILL_BUILD )
   g_leds.begin();
   g_leds.show();
-  pinMode(g_doorTriggerPin, INPUT_PULLDOWN);
+#elif defined(IS_NANO_BUILD)
+  FastLED.addLeds<NEOPIXEL, LEDPIN>(g_leds, LED_COUNT);
+#endif //defined( IS_NANO_BUILD)
+
+  pinMode(DOORPIN, INPUT_PULLUP);
+  g_jobs |= Enums::Job_LightsRefresh;
 }
 
 //------------------------------------------------------------------------------
@@ -140,7 +170,7 @@ void loop()
   unsigned long runtime = millis();
   g_sensorRefreshTimer.tick( runtime );
 
-  const bool doorOpen = digitalRead(g_doorTriggerPin);
+  const bool doorOpen = digitalRead(DOORPIN);
   if( g_environmentInfo.doorOpen != doorOpen )
   {
      g_environmentInfo.doorOpen = doorOpen;
@@ -162,11 +192,13 @@ void periodicTasks()
   if( (g_jobs & Enums::Job_LightsRefresh) != 0 )
   {
     updateLights();
+    delay(30);
   }
 
   if( (g_jobs & Enums::Job_SensorRefresh) != 0 )
   {
     updateSensor();
+    return;
   }
 }
 
@@ -190,7 +222,7 @@ void updateSensor()
 
     char str[16];
     // display temperature.
-    sprintf(&str[0], "Temp %5.2f*C",g_gasSensor.temperature );
+    sprintf(&str[0], "Temp %5.2f*C", (double)g_gasSensor.temperature );
     g_displayHelper.update(Enums::DisplayTemp, str );
 
     // display air quality.
@@ -219,6 +251,7 @@ void updateSensor()
 //------------------------------------------------------------------------------
 void updateLights()
 {
+#if defined(IS_BLUEPILL_BUILD)
   const uint32_t colours[] = { WS2812B::Color(255,0,0), WS2812B::Color(255,255,255) };
   
   for( unsigned int led=0; led<LED_COUNT; led++)
@@ -226,10 +259,19 @@ void updateLights()
     g_leds.setPixelColor(colours[g_environmentInfo.doorOpen? 0 : 1], led);
   }
   g_leds.show();
+#elif defined(IS_NANO_BUILD)
+  const CRGB colours[] = { CRGB(255,255,255), CRGB(255,0,0) }; 
+  const CRGB& colour = colours[g_environmentInfo.doorOpen? 0 : 1];
+
+  for( unsigned int i=0; i<LED_COUNT; i++ )
+  {   
+      g_leds[i] = colour;
+  }
+  FastLED.show(); 
+#endif //defined(IS_NANO_BUILD)
 
   g_jobs &= ~Enums::Job_LightsRefresh;
 }
-
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void tempAndVocRender( const char * ptrtolines, int width, int height )
